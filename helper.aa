@@ -1,0 +1,22 @@
+["autonomous agent", {
+	"messages": [
+		{
+			"app": "payment",
+			"payload": {
+				"asset": "base",
+				"outputs": [
+					{
+						"address": "{trigger.address}",
+						"amount": 1
+					}
+				]
+			}
+		},
+		{
+			"app": "data",
+			"payload": {
+			"step": "{trigger.data.next_step}"
+			}
+		}
+	]
+}]

@@ -1,0 +1,21 @@
+{
+  "name": "option-contract-aa",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "mocha --opts test/mocha.opts --require test/bootload.js test/*.test.oscript.js",
+    "lint": "node ./node_modules/.bin/eslint --ext .js --max-warnings=0 test --fix"
+  },
+  "engines": {
+    "node": ">=8"
+  },
+  "dependencies": {
+    "chai": "^4.2.0",
+    "mocha": "^6.2.0",
+    "aa-testkit": "git+https://github.com/valyakin/aa-testkit.git"
+  },
+  "resolutions": {
+    "chalk": "^3.0.0",
+    "cli-width": "^2.2.1"
+  }
+}

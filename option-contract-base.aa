@@ -1,0 +1,202 @@
+[
+	"autonomous agent",
+		{	
+			"init": "{
+				$byte_to_asset_fees = 1000;
+				$helper_aa = "WKMJLBXXE3P4W76VUYEB25MUJUBXVXKN"; // give a pong to define then issue assets 
+				if (typeof(params.feed_name) != 'string')
+					bounce ('invalid feed_name');
+				if (params.comparison != '>' AND params.comparison != '<' AND params.comparison != '!=' AND params.comparison != '==' 
+					AND params.comparison != '=' AND params.comparison != '>=' AND params.comparison != '<=')
+					bounce('invalid comparison operator');
+				if (!exists(params.feed_value))
+					bounce('missing feed_value');
+				if (typeof(params.feed_value) == 'string' AND params.feed_value == '')
+					bounce('feed value cannot be empty string');
+				if (!is_valid_address(params.oracle_address))
+					bounce('invalid oracle address');
+				if (!parse_date(params.expiry_date))
+					bounce('invalid date');
+			}",
+			"messages": {
+				"cases": [
+					{
+					"if": "{trigger.output[[asset=base]] >= 1e5 OR trigger.address == $helper_aa}",
+					"init": "{
+						$base_amount_received = trigger.output[[asset=base]];
+						if (trigger.data.asset_step AND trigger.address != $helper_aa)
+							bounce("only helper can indicate asset step");
+						if (var["yes_asset"] AND trigger.address != $helper_aa){ // the assets are already defined, we just have to issue them
+							$recipient_address = trigger.address;
+							$asset_amount = $base_amount_received - $byte_to_asset_fees;
+						} else {
+							if (trigger.address != $helper_aa){ // if triggered by user we are at first step of asset definition
+								$asset_type = "yes_asset";
+								$next_step = 1;
+							} else if (trigger.data.step == 1){
+								$asset_type = "no_asset";
+								$next_step = 2;
+							} else if (trigger.data.step == 2){
+								$recipient_address = trigger.initial_address;
+								$asset_amount = var['amount_to_pay'];
+							}
+						}
+					}",
+					"messages": [{
+						"if" : "{$recipient_address}",
+						"app": "payment",
+						"payload": {
+							"asset": "{var["yes_asset"]}",
+							"outputs": [
+								{
+								"address": "{$recipient_address}",
+								"amount": "{$asset_amount}",
+								}
+							]
+						}
+					},
+					{
+						"if" : "{$recipient_address}",
+						"app": "payment",
+						"payload": {
+							"asset": "{var["no_asset"]}",
+							"outputs": [
+								{
+									"address": "{$recipient_address}",
+									"amount": "{$asset_amount}",
+								}
+							]
+						}
+					},
+					{
+						"if" : "{!$recipient_address}",
+						"app": "asset",
+						"payload": {
+							"is_private": false,
+							"is_transferrable": true,
+							"auto_destroy": false,
+							"fixed_denominations": false,
+							"issued_by_definer_only": true,
+							"cosigned_by_definer": false,
+							"spender_attested": false
+						}
+					},
+					{
+						"if" : "{!$recipient_address}",
+						"app": "payment",
+						"payload": {
+							"asset": "base",
+							"outputs": [
+								{
+									"address": "{$helper_aa}",
+									"amount": 10000
+								}
+							]
+						}
+					},
+					{ 
+						"if" : "{!$recipient_address}",
+						"app": "data",
+						"payload": {
+						"next_step": "{$next_step}",
+						"oracle":"{params.oracle_address}"
+						}
+					},
+					{
+						"if" : "{!$recipient_address}",
+						"app": "state",
+						"state": "{
+							var[$asset_type] = response_unit;
+							response[$asset_type] = response_unit;
+							if ($next_step == 1){
+								var['amount_to_pay'] = $base_amount_received - $byte_to_asset_fees; // we store the amount that was received from the initial trigger
+							}
+						}"
+					}
+				]
+			},
+			{
+				"if": "{exists(trigger.data.winner) OR trigger.output[[asset!=base]] > 1000}",
+				"init": "{
+					$received_asset = trigger.output[[asset!=base]].asset;
+					if ($received_asset != 'none'){
+						if (!var['yes_asset'] OR !var['no_asset'])
+							bounce('assets never were defined');
+						if ($received_asset == 'ambiguous')
+							bounce('ambiguous asset');
+						if ($received_asset AND $received_asset != var['yes_asset'] AND $received_asset != var['no_asset'])
+							bounce('foreign asset');
+						if (trigger.output[[asset!=base]].asset == var['yes_asset'])
+							$suggested_outcome = 'yes';
+						else if (trigger.output[[asset!=base]].asset == var['no_asset'])
+							$suggested_outcome = 'no';
+					} else { // anyone can flag winning outcome even without sending asset
+						if (trigger.data.winner == 'yes')
+							$suggested_outcome = 'yes';
+						else if (trigger.data.winner == 'no')
+							$suggested_outcome = 'no';
+					}
+					if (!$suggested_outcome)
+						bounce('no expected winner');
+
+					if (var['winner']){
+						if (var['winner'] != $suggested_outcome)
+							bounce('suggested outcome not confirmed');
+						else
+							$should_pay = true;
+					} else {
+						$datafeed_value = data_feed[[oracles=params.oracle_address, feed_name=params.feed_name, ifnone='']];
+						if ($datafeed_value == '')
+							$datafeed_comparison = false;
+						else if (params.comparison == '>')
+							$datafeed_comparison = $datafeed_value > params.feed_value;
+						else if (params.comparison == '<')
+							$datafeed_comparison = $datafeed_value < params.feed_value;
+						else if (params.comparison == '!=')
+							$datafeed_comparison = $datafeed_value != params.feed_value;
+						else if (params.comparison == '==' OR params.comparison == '=')
+							$datafeed_comparison = $datafeed_value == params.feed_value;
+						else if (params.comparison == '>=')
+							$datafeed_comparison = $datafeed_value >= params.feed_value;
+						else if (params.comparison == '<=')
+							$datafeed_comparison = $datafeed_value <= params.feed_value;
+
+						if ($suggested_outcome == 'yes' AND $datafeed_comparison){
+							$winner = 'yes';
+							$should_pay = true;
+						}
+						else if ($suggested_outcome == 'no' AND timestamp > parse_date(params.expiry_date)){
+							$winner = 'no';
+							$should_pay = false;
+						}
+						else
+							bounce('suggested outcome not confirmed');
+					}
+				}",
+				"messages": [
+					{
+						"if":"{$should_pay}",
+						"app": "payment",
+						"payload": {
+							"asset": "base",
+							"outputs": [
+								{
+									"address": "{ trigger.address }",
+									"amount": "{ trigger.output[[asset!= base]] }"
+								}
+							]
+						}
+					},
+					{
+						"if":"{$winner}",
+						"app": "state",
+						"state": "{
+							var['winner'] =  $winner;		
+							response['winner'] = $winner;
+						}"
+					}
+				]
+			}]
+		}
+	}
+]
