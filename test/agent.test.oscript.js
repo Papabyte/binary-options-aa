@@ -7,7 +7,7 @@ const CONTRACT_BASE_AA = '../option-contract-base.aa'
 const HELPER_AA = '../helper.aa'
 const objectHash = require('ocore/object_hash.js')
 
-const byte_to_asset_fees = 1000
+const byte_to_asset_fees = 5000
 
 describe('Check AA', function () {
 	this.timeout(120000)
@@ -457,6 +457,26 @@ describe('Check AA', function () {
 		expect(vars.winner).to.be.to.be.undefined
 	}).timeout(60000)
 
+
+	it('Alice tries to flag wrong outcome', async () => {
+		const { unit, error } = await this.network.wallet.alice.triggerAaWithData({
+			toAddress: this.equal_aa,
+			amount: 10000,
+			data: {
+				winner: 'has won'
+			}
+		})
+
+		expect(error).to.be.null
+		expect(unit).to.be.validUnit
+
+		const { response } = await this.network.getAaResponseToUnit(unit)
+		expect(response.response.error).to.be.equal('wrong suggested outcome')
+		expect(response.bounced).to.be.true
+
+	}).timeout(60000)
+
+
 	it('Alice flags equal-aa yes after oracle posts', async () => {
 		const datafeed = {}
 		datafeed[this.equal_feed_name] = this.equal_value
@@ -823,7 +843,7 @@ describe('Check AA', function () {
 
 	after(async () => {
 		// uncomment this line to pause test execution to get time for Obyte DAG explorer inspection
-		// await Utils.sleep(3600 * 1000)
+		//await Utils.sleep(3600 * 1000)
 		await this.network.stop()
 	})
 })

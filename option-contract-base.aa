@@ -2,8 +2,8 @@
 	"autonomous agent",
 		{	
 			"init": "{
-				$byte_to_asset_fees = 1000;
-				$helper_aa = "WKMJLBXXE3P4W76VUYEB25MUJUBXVXKN"; // give a pong to define then issue assets 
+				$byte_to_asset_fees = 5000;
+				$helper_aa = "WKMJLBXXE3P4W76VUYEB25MUJUBXVXKN"; // send back a pong 
 				if (typeof(params.feed_name) != 'string')
 					bounce ('invalid feed_name');
 				if (params.comparison != '>' AND params.comparison != '<' AND params.comparison != '!=' AND params.comparison != '==' 
@@ -89,7 +89,7 @@
 							"outputs": [
 								{
 									"address": "{$helper_aa}",
-									"amount": 10000
+									"amount": 1000 // helper needs bytes to pay for fees when it sends back a transaction
 								}
 							]
 						}
@@ -99,7 +99,6 @@
 						"app": "data",
 						"payload": {
 						"next_step": "{$next_step}",
-						"oracle":"{params.oracle_address}"
 						}
 					},
 					{
@@ -107,7 +106,6 @@
 						"app": "state",
 						"state": "{
 							var[$asset_type] = response_unit;
-							response[$asset_type] = response_unit;
 							if ($next_step == 1){
 								var['amount_to_pay'] = $base_amount_received - $byte_to_asset_fees; // we store the amount that was received from the initial trigger
 							}
@@ -137,7 +135,7 @@
 							$suggested_outcome = 'no';
 					}
 					if (!$suggested_outcome)
-						bounce('no expected winner');
+						bounce('wrong suggested outcome');
 
 					if (var['winner']){
 						if (var['winner'] != $suggested_outcome)
