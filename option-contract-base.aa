@@ -124,6 +124,7 @@
 							bounce('ambiguous asset');
 						if ($received_asset AND $received_asset != var['yes_asset'] AND $received_asset != var['no_asset'])
 							bounce('foreign asset');
+						$valid_asset_received = true;
 						if (trigger.output[[asset!=base]].asset == var['yes_asset'])
 							$suggested_outcome = 'yes';
 						else if (trigger.output[[asset!=base]].asset == var['no_asset'])
@@ -140,8 +141,6 @@
 					if (var['winner']){
 						if (var['winner'] != $suggested_outcome)
 							bounce('suggested outcome not confirmed');
-						else
-							$should_pay = true;
 					} else {
 						$datafeed_value = data_feed[[oracles=params.oracle_address, feed_name=params.feed_name, ifnone='']];
 						if ($datafeed_value == '')
@@ -161,11 +160,9 @@
 
 						if ($suggested_outcome == 'yes' AND $datafeed_comparison){
 							$winner = 'yes';
-							$should_pay = true;
 						}
 						else if ($suggested_outcome == 'no' AND timestamp > parse_date(params.expiry_date)){
 							$winner = 'no';
-							$should_pay = false;
 						}
 						else
 							bounce('suggested outcome not confirmed');
@@ -173,7 +170,7 @@
 				}",
 				"messages": [
 					{
-						"if":"{$should_pay}",
+						"if":"{$valid_asset_received}",
 						"app": "payment",
 						"payload": {
 							"asset": "base",
