@@ -17,18 +17,23 @@
 					bounce('invalid oracle address');
 				if (!parse_date(params.expiry_date))
 					bounce('invalid date');
+				if (params.reserve_asset AND !asset[params.reserve_asset].exists)
+					bounce('unknown reserve_asset');
+				$reserve_asset = params.reserve_asset OTHERWISE 'base';
+				$reserve_amount_received = trigger.output[[asset=$reserve_asset]];
+				$conversion_fees = $reserve_asset == 'base' ? $byte_to_asset_fees : 0;
+				$conversion_threshold = $reserve_asset == 'base' ? 1e5 : 0;
 			}",
 			"messages": {
 				"cases": [
 					{
-					"if": "{trigger.output[[asset=base]] >= 1e5 OR trigger.address == $helper_aa}",
+					"if": "{$reserve_amount_received > $conversion_threshold OR trigger.address == $helper_aa}",
 					"init": "{
-						$base_amount_received = trigger.output[[asset=base]];
 						if (trigger.data.asset_step AND trigger.address != $helper_aa)
 							bounce("only helper can indicate asset step");
 						if (var["yes_asset"] AND trigger.address != $helper_aa){ // the assets are already defined, we just have to issue them
 							$recipient_address = trigger.address;
-							$asset_amount = $base_amount_received - $byte_to_asset_fees;
+							$asset_amount = $reserve_amount_received - $conversion_fees;
 						} else {
 							if (trigger.address != $helper_aa){ // if triggered by user we are at first step of asset definition
 								$asset_type = "yes_asset";
@@ -107,14 +112,14 @@
 						"state": "{
 							var[$asset_type] = response_unit;
 							if ($next_step == 1){
-								var['amount_to_pay'] = $base_amount_received - $byte_to_asset_fees; // we store the amount that was received from the initial trigger
+								var['amount_to_pay'] = $reserve_amount_received - $conversion_fees; // we store the amount that was received from the initial trigger
 							}
 						}"
 					}
 				]
 			},
 			{
-				"if": "{exists(trigger.data.winner) OR trigger.output[[asset!=base]] > 1000}",
+				"if": "{exists(trigger.data.winner) OR trigger.output[[asset!=base]] > 0}",
 				"init": "{
 					$received_asset = trigger.output[[asset!=base]].asset;
 					if ($received_asset != 'none'){
@@ -173,7 +178,7 @@
 						"if":"{$valid_asset_received}",
 						"app": "payment",
 						"payload": {
-							"asset": "base",
+							"asset": "{$reserve_asset}",
 							"outputs": [
 								{
 									"address": "{ trigger.address }",
